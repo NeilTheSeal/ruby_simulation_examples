@@ -1,9 +1,20 @@
 # mandelbrot_gosu.rb
 require "gosu"
+require "parallel"
 
-WIDTH     = 800
-HEIGHT    = 600
-MAX_ITER  = 100
+WIDTH    = 800
+HEIGHT   = 600
+MAX_ITER = 100
+
+# 1) Precompute the color palette once
+PALETTE = Array.new(MAX_ITER + 1) do |i|
+  if i == MAX_ITER
+    Gosu::Color.rgb(0, 0, 0)
+  else
+    v = (255 * i / MAX_ITER).to_i
+    Gosu::Color.rgb(v, v, v)
+  end
+end
 
 class MandelbrotWindow < Gosu::Window
   def initialize
@@ -14,13 +25,13 @@ class MandelbrotWindow < Gosu::Window
     @offset_x = -2.5    # complex plane origin (real)
     @offset_y = -1.5    # complex plane origin (imag)
 
-    # Pre-render once
-    @image = render_mandelbrot
+    @last_render = Time.now
+    @image       = render_mandelbrot
   end
 
   def update
     moved = false
-    pan = 0.1 / @zoom
+    pan   = 0.1 / @zoom
 
     if button_down?(Gosu::KB_LEFT)
       @offset_x -= pan
@@ -39,19 +50,19 @@ class MandelbrotWindow < Gosu::Window
       moved = true
     end
 
-    # Zoom in with '=' key
     if button_down?(Gosu::KB_EQUALS)
       @zoom *= 1.1
       moved = true
-
-    # Zoom out with '-' key
     elsif button_down?(Gosu::KB_MINUS)
       @zoom /= 1.1
       moved = true
     end
 
-    # Only re-render when view parameters change
-    @image = render_mandelbrot if moved
+    # rate-limit redraws to once every 0.2s
+    return unless moved && (Time.now - @last_render) > 0.2
+
+    @image       = render_mandelbrot
+    @last_render = Time.now
   end
 
   def draw
@@ -61,23 +72,33 @@ class MandelbrotWindow < Gosu::Window
   private
 
   def render_mandelbrot
+    # 2) Hoist locals for speed
+    zoom     = @zoom
+    inv_zoom = 1.0 / zoom
+    ox = @offset_x
+    oy = @offset_y
+    palette = PALETTE
+
+    # 3) Parallel compute each row of colors
+    rows = Parallel.map(0...HEIGHT, in_threads: 8) do |py|
+      ci = py * inv_zoom + oy
+      (0...WIDTH).map do |px|
+        cr = px * inv_zoom + ox
+        zr = zi = iter = 0
+
+        while zr * zr + zi * zi <= 4.0 && iter < MAX_ITER
+          zr, zi = zr * zr - zi * zi + cr, 2 * zr * zi + ci
+          iter  += 1
+        end
+
+        palette[iter]
+      end
+    end
+
+    # 4) Draw the precomputed color grid
     Gosu.render(WIDTH, HEIGHT, retro: true) do
-      (0...WIDTH).each do |px|
-        (0...HEIGHT).each do |py|
-          # map pixel → complex plane
-          cr = px / @zoom + @offset_x
-          ci = py / @zoom + @offset_y
-
-          zr = zi = 0.0
-          iter = 0
-
-          while zr * zr + zi * zi <= 4.0 && iter < MAX_ITER
-            zr, zi = zr * zr - zi * zi + cr, 2 * zr * zi + ci
-            iter += 1
-          end
-
-          c = iter == MAX_ITER ? 0 : (255 * iter / MAX_ITER).to_i
-          color = Gosu::Color.rgb(c, c, c)
+      rows.each_with_index do |row, py|
+        row.each_with_index do |color, px|
           draw_rect(px, py, 1, 1, color, 0)
         end
       end
