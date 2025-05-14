@@ -21,15 +21,15 @@ def kB(temperature)
   PRE_EXPONENTIAL_FACTOR_2 * Math.exp(-ACTIVATION_ENERGY_2 / (GAS_CONSTANT * temperature))
 end
 
-def dCA_dT(temperature, concentration_a)
+def dCA_dt(temperature, concentration_a)
   -kA(temperature) * concentration_a
 end
 
-def dCB_dT(temperature, concentration_a, concentration_b)
+def dCB_dt(temperature, concentration_a, concentration_b)
   kA(temperature) * concentration_a - kB(temperature) * concentration_b
 end
 
-def dCC_dT(temperature, concentration_b)
+def dCC_dt(temperature, concentration_b)
   kB(temperature) * concentration_b
 end
 
@@ -49,9 +49,9 @@ def simulate(temperature)
 
   # Simulation loop
   while time < 100
-    concentration_a += dCA_dT(temperature, concentration_a) * time_step
-    concentration_b += dCB_dT(temperature, concentration_a, concentration_b) * time_step
-    concentration_c += dCC_dT(temperature, concentration_b) * time_step
+    concentration_a += dCA_dt(temperature, concentration_a) * time_step
+    concentration_b += dCB_dt(temperature, concentration_a, concentration_b) * time_step
+    concentration_c += dCC_dt(temperature, concentration_b) * time_step
 
     time += time_step
 
