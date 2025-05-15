@@ -2,10 +2,11 @@
 require "gosu"
 require "etc"
 
-WIDTH        = 400
-HEIGHT       = 300
+WIDTH        = 800
+HEIGHT       = 600
 MAX_ITER     = 100
 RACTOR_COUNT = Etc.nprocessors # one Ractor per core
+INTEGER_MAX = 4_611_686_018_427_387_903
 
 # 1) Precompute the color palette once (shareable)
 PALETTE = Array.new(MAX_ITER + 1) do |i|
@@ -22,7 +23,7 @@ class MandelbrotWindow < Gosu::Window
     super(WIDTH, HEIGHT)
     self.caption = "Mandelbrot Viewer with Ractors"
 
-    @zoom     = 100.0
+    @zoom     = 200.0
     @offset_x = -2.5
     @offset_y = -1.5
 
@@ -40,7 +41,7 @@ class MandelbrotWindow < Gosu::Window
               cr = px * inv_zoom + ox
               zr = zi = 0.0
               iter = 0
-              while zr * zr + zi * zi <= 4.0 && iter < MAX_ITER
+              while zr * zr + zi * zi <= INTEGER_MAX && iter < MAX_ITER
                 zr, zi = zr * zr - zi * zi + cr, 2 * zr * zi + ci
                 iter += 1
               end
